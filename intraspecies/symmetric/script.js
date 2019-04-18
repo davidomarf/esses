@@ -1,149 +1,172 @@
-const WIDTH = 1000;
+// Canvas Setting
+const WIDTH = 1200;
 const HEIGHT = 600;
 
+// Initial values for population
 const POPULATION_INIT = 30;
-const HAWK_INIT = 15;
+const HAWK_INIT = 0;
 const DOVE_INIT = POPULATION_INIT - HAWK_INIT;
 
-let avgProportion = HAWK_INIT / DOVE_INIT;
+// Global variables
+let totalPopulation = {
+    prev: 0,
+    current: POPULATION_INIT
+};
+let hawkPopulation = {
+    prev: 0,
+    current: HAWK_INIT
+};
+let dovePopulation = {
+    prev: 0,
+    current: DOVE_INIT
+};
 
-let totalPopulation = [POPULATION_INIT];
-let hawkPopulation = [HAWK_INIT];
-let dovePopulation = [DOVE_INIT];
+let avgProportion = hawkPopulation.current / dovePopulation.current;
 
 let population = []
 
 let hawkPoints = 0;
 let dovePoints = 0;
 
-function showParameters() {
-    createDiv("Population size: <span class='value'>" + POPULATION_INIT + "</span>").id("population-size");
-    createDiv("Hawk members:    <span class='value'>" + HAWK_INIT + "</span>").id("hawk-members");
-    createDiv("Dove members:    <span class='value'>" + DOVE_INIT + "</span>").id("dove-members");
-    createDiv("Proportion H/D:  <span class='value'>" + (HAWK_INIT / DOVE_INIT) + "</span>").id("proportion");
-    createDiv("Avg. Proportion H/D:  <span class='value'>" + avgProportion + "</span>").id("avg-proportion");
-    createDiv("Generations:  <span class='value'>" + drawCall + "</span>").id("generations");
+/************ Helping Functions ************/
+
+function makeOldPopulationDie() {
+    population = population.filter(e => e.age < 3);
 }
 
-function updateValues() {
-    let populationNode = select(".value", "#population-size");
-    let hawksNode = select(".value", "#hawk-members");
-    let dovesNode = select(".value", "#dove-members");
-    let proportionNode = select(".value", "#proportion");
-    let generationsNode = select(".value", "#generations");
-    let avgNode = select(".value", "#avg-proportion");
-    avgProportion =
-        (
-            avgProportion * (drawCall - 1) +
-            (hawkPopulation[hawkPopulation.length - 1] / dovePopulation[dovePopulation.length - 1])
-        ) / (drawCall)
-
-    populationNode.html(population.length);
-    hawksNode.html(hawkPopulation[hawkPopulation.length - 1]);
-    dovesNode.html(dovePopulation[dovePopulation.length - 1]);
-    proportionNode.html((hawkPopulation[hawkPopulation.length - 1] / dovePopulation[dovePopulation.length - 1]).toFixed(2));
-    generationsNode.html(drawCall);
-    avgNode.html(avgProportion.toFixed(2));
+function increaseAge() {
+    population.map(e => e.age++);
 }
 
-function plotValues(time) {
-    stroke("blue");
-    line(time, HEIGHT - totalPopulation[totalPopulation.length - 2] - 1,
-        time + 1, HEIGHT - totalPopulation[totalPopulation.length - 1] - 1);
-    stroke("red"); 1
-    line(time, HEIGHT - hawkPopulation[hawkPopulation.length - 2] - 1,
-        time + 1, HEIGHT - hawkPopulation[hawkPopulation.length - 1] - 1);
-    stroke("green");
-    line(time, HEIGHT - dovePopulation[dovePopulation.length - 2] - 1,
-        time + 1, HEIGHT - dovePopulation[dovePopulation.length - 1] - 1);
+function getAvgProportion() {
+    // Convert previous avgProportion to "original" sum, add the new value, and divide again.
+    return (
+        ((avgProportion * (drawCall - 1)) + (hawkPopulation.current / dovePopulation.current)) / (drawCall)
+    )
 }
 
-function getNewValues() {
-    hawkPopulation.push(population.filter(e => e.aggressiveness == 1).length);
-    dovePopulation.push(population.filter(e => e.aggressiveness == 0).length);
-    totalPopulation.push(hawkPopulation[hawkPopulation.length - 1] + dovePopulation[dovePopulation.length - 1]);
-
+function getNewInformation() {
+    // Make the last current number, the previous one, and calculate
+    // the *new* current number
+    hawkPopulation = {
+        prev: hawkPopulation.current,
+        current: population.filter(e => e.aggressiveness == 1).length
+    }
+    dovePopulation = {
+        prev: dovePopulation.current,
+        current: population.filter(e => e.aggressiveness == 0).length
+    }
+    totalPopulation = {
+        prev: totalPopulation.current,
+        current: dovePopulation.current + hawkPopulation.current
+    }
 }
 
 function createPopulation() {
-    for (let i = 0; i < HAWK_INIT; i++) {
+    // Create N hawks, and M doves, forcing a 50-50 distribution of sexes
+
+    let hawk_n = round(HAWK_INIT / 2)
+    for (let i = 0; i < hawk_n; i++) {
         population.push(new Animal("male", 1));
+        population.push(new Animal("female", 1));
     }
-    for (let i = 0; i < DOVE_INIT; i++) {
+
+    let dove_n = round(DOVE_INIT / 2)
+    for (let i = 0; i < dove_n; i++) {
         population.push(new Animal("male", 0));
+        population.push(new Animal("female", 0));
     }
 }
 
 function fightPopulation() {
+    // Makes every subject in population, fight against every other member
+    // Not "nature-accurate", maybe will be greatly improved if we add a 
+    // "location" for subjects, so close subjects have more fight-probability
     for (let i = 0; i < population.length; i++) {
-        population[i].fight(random(population));
-    }
-}
-
-function countPoints() {
-    for (let i = 0; i < population.length; i++) {
-        if (population[i].aggressiveness == 1) {
-            hawkPoints += population[i].points;
-        } else {
-            dovePoints += population[i].points;
+        for (let j = i; j < population.length; j++) {
+            if (j === i) continue;
+            population[i].fight(population[j]);
         }
-        // population[i].points = 0;
-        population[i].age++;
     }
 }
 
 function reproducePopulation() {
-    // let totalPoints = hawkPoints + dovePoints;
-    // hawkChilds = round(population.length / 3  * (hawkPoints / totalPoints)); 
-    // doveChilds = round(population.length / 3 * (dovePoints / totalPoints));
+    // Calculate the average score (Animal.points) for the population
     let avg = population.map(a => a.points).reduce((a, b) => (a + b)) / population.length
-    let successful = population.filter(e => e.points > avg && e.points > 0)
+
+    // Select only the subjects scored above-average
+    let successful = population.filter(e => e.points > avg)
+
+    // If for some reason, successful is empty, it means no subject scored above-average,
+    // which means all subjects got the same score. So we select the subjects randomly.
+    if (successful.length === 0) successful = population.filter(() => random() > .5);
+
+    // Why the 6? I'm not sure. Will fix later. Other numbers make the population either
+    // grow uncontrollably, or go extinct after just a few generations.
     let n = population.length / 6;
+
     for (let i = 0; i < n; i++) {
-        // if (successful[i].points > avg)
-        // population.push(population[i].reproduce(population[i]));
+        // There will be **at least** n new subjects in the population.
         population.push(random(successful).reproduce(random(successful)));
-        // population.push(successful[i].reproduce(random(successful)));
-        if(random()>.99) continue;
-        population.push(random(successful).reproduce(random(successful)));
-        if (random() > .995) {
-            population.push(successful[i].reproduce(random(successful)));
+
+        // There will be, 99% of the time, an extra child for a pair of subjects
+        if (random() < .99) {
+            population.push(random(successful).reproduce(random(successful)));
+
+            // There will be, ~.49% of the time, one more extra child for a pair of subjects
+            if (random() < .005) {
+                population.push(random(successful).reproduce(random(successful)));
+            }
         }
     }
-
-    // for(let i = 0; i < hawkChilds; i++){
-    //     if(random() > .8){
-    //         i++;
-    //         population.push(new Animal("male", 0))
-    //     } 
-    //     population.push(new Animal("male", 1));
-    // }
-    // for(let i = 0; i < doveChilds; i++){
-    //     if(random() > .8){
-    //         i++;
-    //         population.push(new Animal("male", 1))
-    //     } 
-    //     population.push(new Animal("male", 0));
-    // }
-    // let n = population.length
-    // for(let i = 0; i < n; i++){
-    //     if(population[i].points > 0){
-    //         population.push(new Animal(population[i].aggressiveness))
-    //     }
-    // }
-    // return;
 }
 
-function killOldPopulation() {
-    population = population.filter(e => e.age < 3);
+/********** HTML related functions **********/
+
+function createInformationHTML() {
+    createDiv("Population size: <span class='value'>" + POPULATION_INIT + "</span>")
+        .id("population-size");
+    createDiv("Hawk members:    <span class='value'>" + HAWK_INIT + "</span>")
+        .id("hawk-members");
+    createDiv("Dove members:    <span class='value'>" + DOVE_INIT + "</span>")
+        .id("dove-members");
+    createDiv("Proportion H/D:  <span class='value'>" + (HAWK_INIT / DOVE_INIT) + "</span>")
+        .id("proportion");
+    createDiv("Avg. Proportion H/D:  <span class='value'>" + avgProportion + "</span>")
+        .id("avg-proportion");
+    createDiv("Generations:  <span class='value'>" + drawCall + "</span>")
+        .id("generations");
 }
 
+function updateHTMLContent() {
+    select(".value", "#population-size").html(population.length);
+    select(".value", "#hawk-members").html(hawkPopulation.current);
+    select(".value", "#dove-members").html(dovePopulation.current);
+    select(".value", "#proportion").html((hawkPopulation.current / dovePopulation.current).toFixed(2));
+    select(".value", "#generations").html(drawCall);
+    avgProportion = getAvgProportion()
+    select(".value", "#avg-proportion").html(avgProportion.toFixed(2));
+}
+
+function plotValues(time) {
+    stroke("blue");
+    line(time, HEIGHT - totalPopulation.prev - 1,
+        time + 1, HEIGHT - totalPopulation.current - 1);
+    stroke("red");
+    line(time, HEIGHT - hawkPopulation.prev - 1,
+        time + 1, HEIGHT - hawkPopulation.current - 1);
+    stroke("green");
+    line(time, HEIGHT - dovePopulation.prev - 1,
+        time + 1, HEIGHT - dovePopulation.current - 1);
+}
+
+/***************** P5.JS *****************/
 
 function setup() {
     createCanvas(WIDTH, HEIGHT);
 
     createPopulation();
-    showParameters();
+    createInformationHTML();
     const body = select("body");
     // noLoop();
 }
@@ -151,23 +174,16 @@ function setup() {
 let drawCall = 0;
 function draw() {
     drawCall++;
-    fightPopulation();
-    countPoints();
-    reproducePopulation();
-    killOldPopulation();
-    getNewValues();
-    updateValues();
-    plotValues(drawCall);
-}
+    if (drawCall % WIDTH === 0) background(255)
+    if (drawCall > WIDTH) {
+        translate(-WIDTH * int(drawCall / WIDTH), 0);
+    }
 
-function mouseClicked() {
-    drawCall++;
     fightPopulation();
-    countPoints();
+    increaseAge();
     reproducePopulation();
-    killOldPopulation();
-    getNewValues();
-    updateValues();
+    makeOldPopulationDie();
+    getNewInformation();
+    updateHTMLContent();
     plotValues(drawCall);
-    translate(WIDTH, 0);
 }

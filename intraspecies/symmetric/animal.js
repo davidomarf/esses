@@ -1,9 +1,7 @@
 class Animal {
     constructor(sex, geneticAggressiveness) {
-        let aggressiveness = 0;
-        if (geneticAggressiveness > random()) aggressiveness = 1;
         this.geneticAggressiveness = geneticAggressiveness;
-        this.aggressiveness = aggressiveness;
+        this.aggressiveness = geneticAggressiveness > random() ? 1 : 0;
         this.sex = sex;
         this.points = 0;
         this.age = 0;
@@ -13,25 +11,10 @@ class Animal {
         // if(this.sex == animal.sex) return null;
         if (!sex) sex = random(["male", "female"]);
         let aggressiveness = (this.geneticAggressiveness + animal.geneticAggressiveness) / 2;
-        // aggressiveness += random(-.1, .1);
+        aggressiveness += random(-.1, .1);
+        if (aggressiveness < 0) aggressiveness = 0;
         // console.log(this, animal, aggressiveness)
         return new Animal(sex, aggressiveness);
-    }
-
-    won() {
-        this.points += 50;
-    }
-
-    lost() {
-        this.points = this.points;
-    }
-
-    injured() {
-        this.points -= 100;
-    }
-
-    bored() {
-        this.points -= 10;
     }
 
     fight(animal) {
@@ -40,9 +23,16 @@ class Animal {
                 animal.lost();
                 this.won()
             } else {
-                animal.injured();
-                animal.lost();
-                this.won();
+                if (random() > .5) {
+                    animal.injured();
+                    animal.lost();
+                    this.won();
+                }
+                else {
+                    animal.won();
+                    this.injured();
+                    this.lost();
+                }
             }
         }
         else {
@@ -58,4 +48,9 @@ class Animal {
             }
         }
     }
+
+    won() { this.points += 50; }
+    lost() { this.points = this.points; }
+    injured() { this.points -= 100; }
+    bored() { this.points -= 10; }
 }
